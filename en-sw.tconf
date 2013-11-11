@@ -1,0 +1,70 @@
+global {
+    # Output directory:
+    ducttape_output="/oasis/projects/nsf/cmu134/wammar/en-sw"
+
+    train_corpus="/oasis/projects/nsf/cmu134/wammar/data/all-train.en-sw"
+    tune_corpus="/oasis/projects/nsf/cmu134/wammar/data/dev.en-sw"
+    test_corpus="/oasis/projects/nsf/cmu134/wammar/data/test.en-sw"
+
+    # UseCustomAlignment controls whether to retrain word alignment from the train_corpus, or just use 
+    # alignments at 'alignment'
+    alignment="/dev/null"
+
+    # UseCustomLM controls whether to build a language model using the data at 'lm_data' or use 
+    # an already built lm at 'language_model'
+    lm_order=3
+    lm_data="/oasis/projects/nsf/cmu134/wammar/data/gv+hel+dli.sw"
+    #language_model="/usr1/home/wammar/monolingual/en-3.klm"
+    language_model="/dev/null"
+
+    # preprocess data
+    tokenize_corpus="false"
+    lowercase_corpus="false"
+    max_sentence_length=0
+
+    meteor_lang="other"
+    cdec_dir="/home/wammar/cdec/"
+    multeval="/home/wammar/multeval/multeval.sh"
+    giza_bin="/home/wammar/mgizapp/bin"
+    moses_train_script="/home/wammar/mosesdecoder/scripts/training/train-model.perl"
+    mkcls_bin="/home/wammar/mosesdecoder/bin/mkcls"
+    wammar_utils_dir="/home/wammar/wammar-utils"
+    alignment_with_openfst_dir="/home/wammar/alignment-with-openfst/"
+
+    decode_cores=32
+    giza_cores=32
+
+    src="en"
+    tgt="sw"
+
+    # autoencoder params
+    init_theta_fwd=""
+    init_lambda_fwd=""
+    init_theta_bwd=""
+    init_lambda_bwd=""
+    test_sents_count=0
+
+    # autoencoder hyperparams
+    l2_strength=(L2Strength: zero="" point_o_one=0.01 point_one=0.1 one=1.0 ten=10.0 hundred=100.0)
+    l1_strength=(L1Strength: zero="" point_o_one=0.01 point_one=0.1 one=1.0 ten=10.0 hundred=100.0)
+    dirichlet_alpha=(DirichletAlpha: one=1.0 smooth=1.01 too_smooth=2 sparse=0.99 too_sparse=0.5)
+    variational=(Variational: yes=1 no="")
+    #lbfgs_itercount=(LbfgsItercount: one=1 two=2 four=4 eight=8)
+    #em_itercount=(EmItercount: zero=0 one=1 two=2 four=4 eight=8)
+
+    # language specific
+    conv_pharaoh_script="/oasis/projects/nsf/cmu134/wammar/data/hansards/conv-pharaoh.pl"
+    aer_eval_script="/oasis/projects/nsf/cmu134/wammar/data/hansards/"
+    gold_alignment="/oasis/projects/nsf/cmu134/wammar/data/hansards/English-French/answers/test.wa.nullalign"
+    #gold_alignment="/oasis/projects/nsf/cmu134/wammar/data/hansards/English-French/answers/test.wa.nonullalign"
+    
+}
+
+plan Aer {
+    reach EvaluateAlignment via (Aligner: autoencoder giza fast) * (L2Strength: one) * (L1Strength: zero) * (DirichletAlpha: smooth) * (Variational: yes)
+}
+
+plan Full {
+    reach Evaluate via (TuneOrTest: tune test) * (UseCustomLM: no) * (Aligner: autoencoder) * (L2Strength: one) * (L1Strength: zero) * (DirichletAlpha: smooth) * (Variational: yes)
+}
+
