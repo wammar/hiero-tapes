@@ -3,9 +3,19 @@
 global {
   ducttape_experimental_submitters=enable
   ducttape_experimental_imports=enable
+
+  # autoencoder hyperparams
+  l2_strength=(L2Strength: zero="" point_o_one=0.01 point_one=0.1 one=1.0 ten=10.0 hundred=100.0)
+  l1_strength=(L1Strength: zero="" point_o_one=0.01 point_one=0.1 one=1.0 ten=10.0 hundred=100.0)
+  dirichlet_alpha=(DirichletAlpha: one=1.0 smooth=1.01 too_smooth=2 sparse=0.99 too_sparse=0.5)
+  variational=(Variational: yes=true no=false)
+  lbfgs_itercount=(LbfgsItercount: one=1)
+  em_itercount=(EmItercount: one=1 zero=0)
+  coord_itercount=(CoordItercount: normal="" zero=0)
+  test_with_crf_only=(TestWithCrfOnly: no=false yes=true)
 }
 
-import ../submitters.tape
+#import ../submitters.tape
 
 task Tokenize
     < corpus=(DataSection:
@@ -76,7 +86,7 @@ task GizaAlignS2T
     > output_dir
     :: giza_bin=@
     :: moses_train_script=@
-    :: giza_cores=@
+    :: cores=@
     :: src=@
     :: tgt=@
     :: cdec_dir=@
@@ -86,7 +96,7 @@ task GizaAlignS2T
   $cdec_dir/corpus/cut-corpus.pl 1 $corpus > $corpus.$src
   $cdec_dir/corpus/cut-corpus.pl 2 $corpus > $corpus.$tgt
 
-  $moses_train_script --first-step 1 --last-step 3 --parallel --root-dir $output_dir --corpus $corpus --f $src --e $tgt --external-bin-dir $giza_bin --mgiza $giza_bin --mgiza-cpus=$giza_cores --alignment srctotgt 
+  $moses_train_script --first-step 1 --last-step 3 --parallel --root-dir $output_dir --corpus $corpus --f $src --e $tgt --external-bin-dir $giza_bin --mgiza $giza_bin --mgiza-cpus=$cores --alignment srctotgt 
   cp $output_dir/model/aligned.srctotgt $alignment
 }
 
@@ -96,7 +106,7 @@ task GizaAlignT2S
     > alignment
     :: giza_bin=@
     :: moses_train_script=@
-    :: giza_cores=@
+    :: cores=@
     :: src=@
     :: tgt=@
     :: cdec_dir=@
@@ -106,7 +116,7 @@ task GizaAlignT2S
   $cdec_dir/corpus/cut-corpus.pl 1 $corpus > $corpus.$src
   $cdec_dir/corpus/cut-corpus.pl 2 $corpus > $corpus.$tgt
 
-  $moses_train_script --first-step 3 --last-step 3 --parallel --root-dir $output_dir --corpus $corpus --f $src --e $tgt --external-bin-dir $giza_bin --mgiza $giza_bin --mgiza-cpus=$giza_cores --alignment tgttosrc 
+  $moses_train_script --first-step 3 --last-step 3 --parallel --root-dir $output_dir --corpus $corpus --f $src --e $tgt --external-bin-dir $giza_bin --mgiza $giza_bin --mgiza-cpus=$cores --alignment tgttosrc 
   cp $output_dir/model/aligned.tgttosrc $alignment
 }
 
@@ -167,7 +177,7 @@ task BuildLatentCrfAligner
 task AutoencoderAlignS2T
     :: alignment_with_openfst_dir=@
     :: test_sents_count=@ 
-    :: procs=$giza_cores
+    :: procs=$cores
     :: data_file=$train_corpus
     :: init_theta=$init_theta_fwd
     :: init_lambda=$init_lambda_fwd
@@ -175,6 +185,10 @@ task AutoencoderAlignS2T
     :: l1_strength=@
     :: dirichlet_alpha=@
     :: variational=@
+    :: test_with_crf_only=@
+    :: lbfgs_itercount=@
+    :: em_itercount=@
+    :: coord_itercount=@
     < executable=$executable@BuildLatentCrfAligner
     < wordpair_feats_file=$wordpair_feats_file@GenerateWordpairFeatsS2T 
     > alignment 
@@ -189,9 +203,7 @@ task AutoencoderAlignS2T
   --feat SRC0_TGT0 --feat LOG_ALIGNMENT_JUMP --feat DIAGONAL_DEVIATION --feat SYNC_START --feat SYNC_END 
   --feat ALIGNMENT_JUMP --feat ALIGNMENT_JUMP_IS_ZERO --feat PRECOMPUTED 
   --wordpair-feats $wordpair_feats_file 
-  --test-size $test_sents_count 
-  --max-em-iter-count 1 
-  --max-lbfgs-iter-count 1"
+  --test-size $test_sents_count"
 
   if [ $init_theta ]; then
     command="$command --init-theta $init_theta"  
@@ -214,8 +226,25 @@ task AutoencoderAlignS2T
   fi
 
   if [ $variational ]; then
-    command="$command --variational-inference true"
+    command="$command --variational-inference $variational"
   fi
+
+  if [ $test_with_crf_only ]; then
+    command="$command --test-with-crf-only $test_with_crf_only"
+  fi
+
+  if [ $em_itercount ]; then
+    command="$command --max-em-iter-count $em_itercount"
+  fi
+
+  if [ $lbfgs_itercount ]; then
+    command="$command --max-lbfgs-iter-count $lbfgs_itercount"
+  fi 
+
+  if [ $coord_itercount ]; then
+    command="$command --max-iter-count $coord_itercount"
+  fi
+
 
   echo "executing $command..."
   $command 2> $out_err
@@ -227,7 +256,7 @@ task AutoencoderAlignS2T
 
 task AutoencoderAlignT2S
     :: test_sents_count=@ 
-    :: procs=$giza_cores
+    :: procs=$cores
     :: data_file=$train_corpus
     :: init_theta=$init_theta_bwd
     :: init_lambda=$init_lambda_bwd
@@ -235,6 +264,10 @@ task AutoencoderAlignT2S
     :: l1_strength=@
     :: dirichlet_alpha=@
     :: variational=@
+    :: test_with_crf_only=@
+    :: lbfgs_itercount=@
+    :: em_itercount=@
+    :: coord_itercount=@
     < wordpair_feats_file=$wordpair_feats_file@GenerateWordpairFeatsT2S 
     < executable=$executable@BuildLatentCrfAligner
     > alignment 
@@ -250,8 +283,6 @@ task AutoencoderAlignT2S
   --feat ALIGNMENT_JUMP --feat ALIGNMENT_JUMP_IS_ZERO --feat PRECOMPUTED 
   --wordpair-feats $wordpair_feats_file 
   --test-size $test_sents_count 
-  --max-em-iter-count 1 
-  --max-lbfgs-iter-count 1 
   --reverse true"
 
   if [ $init_theta ]; then
@@ -275,7 +306,23 @@ task AutoencoderAlignT2S
   fi
 
   if [ $variational ]; then
-    command="$command --variational-inference true"
+    command="$command --variational-inference $variational"
+  fi
+
+  if [ $test_with_crf_only ]; then
+    command="$command --test-with-crf-only $test_with_crf_only"
+  fi
+ 
+  if [ $em_itercount ]; then
+    command="$command --max-em-iter-count $em_itercount"
+  fi
+
+  if [ $lbfgs_itercount ]; then
+    command="$command --max-lbfgs-iter-count $lbfgs_itercount"
+  fi 
+
+  if [ $coord_itercount ]; then
+    command="$command --max-iter-count $coord_itercount"
   fi
 
   echo "executing $command..."
@@ -339,7 +386,7 @@ task ExtractGrammars
     < ini=@BuildSuffixArray
     > wrapped_corpus
     > grammar_dir
-    :: cores=1
+    :: cores=@
     :: cdec_dir=@
    # :: .submitter=torque_shared .walltime="24:00:00" .cpus=1 .vmem=33g .q=shared 
 {
@@ -386,7 +433,7 @@ task Tune
     > mira_work
     > optimized_weights
     :: tune_corpus=@
-    :: cores=$decode_cores
+    :: cores=@
     :: cdec_dir=@
    # :: .submitter=torque_normal .walltime="48:00:00" .cpus=32 .vmem=60g .q=normal 
 {
@@ -434,7 +481,7 @@ task Decode
     > kbest
     > output
     :: k=1000
-    :: cores=$decode_cores
+    :: cores=@
     :: cdec_dir=@
  #   :: .submitter=torque_normal .walltime="6:00:00" .cpus=32 .vmem=60g .q=normal 
 {
@@ -480,7 +527,7 @@ task EvaluateAlignment
 #    :: .submitter=torque_shared .walltime="00:20:00" .cpus=1 .vmem=4g .q=shared 
   {
   head -n $test_sents_count $alignment | $conv_pharaoh_script > temp
-  $aer_eval_script    temp    $gold_alignment     > $aer
+  $aer_eval_script    $gold_alignment temp     > $aer
 }
 
 #summary EvaluationSummary {

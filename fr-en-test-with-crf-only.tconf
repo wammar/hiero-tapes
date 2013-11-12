@@ -1,0 +1,26 @@
+import fr-en.tconf
+
+global {
+    # Output directory:
+    ducttape_output="/oasis/projects/nsf/cmu134/wammar/fr-en-test-with-crf-only"
+
+    # initial autoencoder params
+    init_theta_fwd="/oasis/projects/nsf/cmu134/wammar/fr-en/AutoencoderAlignS2T/DirichletAlpha.smooth+L2Strength.one/prefix.final.theta"
+    init_lambda_fwd="/oasis/projects/nsf/cmu134/wammar/fr-en/AutoencoderAlignS2T/DirichletAlpha.smooth+L2Strength.one/prefix.final.lambda"
+    init_theta_bwd="/oasis/projects/nsf/cmu134/wammar/fr-en/AutoencoderAlignT2S/DirichletAlpha.smooth+L2Strength.one/prefix.final.theta"
+    init_lambda_bwd="/oasis/projects/nsf/cmu134/wammar/fr-en/AutoencoderAlignT2S/DirichletAlpha.smooth+L2Strength.one/prefix.final.lambda"
+
+}
+
+plan AerTest {
+    reach EvaluateAlignment via (Aligner: fast giza)
+}
+
+plan Aer {
+    reach EvaluateAlignment via (Aligner: fast_none none_fast fast autoencoder autoencoder_none none_autoencoder) * (L2Strength: one) * (L1Strength: zero) * (DirichletAlpha: smooth) * (Variational: yes) * (TestWithCrfOnly: no yes) * (LbfgsItercount: one) * (EmItercount: zero) * (CoordItercount: zero)
+}
+
+plan Full {
+    reach Evaluate via (TuneOrTest: tune test) * (UseCustomLM: no) * (Aligner: autoencoder) * (L2Strength: one) * (L1Strength: zero) * (DirichletAlpha: smooth) * (Variational: yes)
+}
+

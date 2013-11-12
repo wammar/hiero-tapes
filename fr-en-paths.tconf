@@ -1,0 +1,23 @@
+global {
+    train_corpus="/oasis/projects/nsf/cmu134/wammar/data/10k.fr-en"
+    tune_corpus="/oasis/projects/nsf/cmu134/wammar/data/dev.fr-en"
+    test_corpus="/oasis/projects/nsf/cmu134/wammar/data/test.fr-en"
+
+    language_model="/usr1/home/wammar/monolingual/en-3.klm"
+
+    # tool paths
+    cdec_dir="/home/wammar/cdec/"
+    multeval="/home/wammar/multeval/multeval.sh"
+    giza_bin="/home/wammar/mgizapp/bin"
+    moses_train_script="/home/wammar/mosesdecoder/scripts/training/train-model.perl"
+    mkcls_bin="/home/wammar/mosesdecoder/bin/mkcls"
+    wammar_utils_dir="/home/wammar/wammar-utils"
+    alignment_with_openfst_dir="/home/wammar/alignment-with-openfst/"
+
+    # aer
+    conv_pharaoh_script="/oasis/projects/nsf/cmu134/wammar/data/hansards/conv-pharaoh.pl"
+    aer_eval_script="/oasis/projects/nsf/cmu134/wammar/data/hansards/wa_eval_align.pl"
+    gold_alignment="/oasis/projects/nsf/cmu134/wammar/data/hansards/English-French/answers/test.wa.nullalign"
+    #gold_alignment="/oasis/projects/nsf/cmu134/wammar/data/hansards/English-French/answers/test.wa.nonullalign"
+
+}
