@@ -4,6 +4,9 @@ global {
   ducttape_experimental_submitters=enable
   ducttape_experimental_imports=enable
 
+  # word pair features hyperparams
+  precomputed_features=(PrecomputedFeatures: all=all dyer11=dyer11 none=none)
+
   # autoencoder hyperparams
   l2_strength=(L2Strength: zero="" point_o_one=0.01 point_one=0.1 one=1.0 ten=10.0 hundred=100.0)
   l1_strength=(L1Strength: zero="" point_o_one=0.01 point_one=0.1 one=1.0 ten=10.0 hundred=100.0)
@@ -13,6 +16,7 @@ global {
   em_itercount=(EmItercount: one=1 zero=0)
   coord_itercount=(CoordItercount: normal="" zero=0)
   test_with_crf_only=(TestWithCrfOnly: no=false yes=true)
+
 }
 
 #import ../submitters.tape
@@ -123,15 +127,24 @@ task GizaAlignT2S
 task GenerateWordpairFeatsS2T 
     :: data_file=$train_corpus 
     :: mkcls_bin=@
+    :: precomputed_features=@
     > wordpair_feats_file 
     #:: .submitter=torque_shared .walltime="12:00:00" .cpus=32 .vmem=32g .q=normal 
 {
-
   # use cdec to generate word pair features for a partiuclar test set
   ~/cdec/word-aligner/aligner.pl --mkcls=$mkcls_bin $data_file
   pushd talign
-  make generate-wordpair-features
-  gzip -d grammars/wordpairs.f-e.features.gz
+  if [ $precomputed_features == none ]; then
+    mkdir grammars
+    touch wordpairs.f-e.features
+  else
+    if [ $precomputed_features == all ]; then
+      make generate-wordpair-features USE_AFFIXES=1
+    else
+      make generate-wordpair-features USE_AFFIXES=0
+    fi
+    gzip -d grammars/wordpairs.f-e.features.gz
+  fi
   popd
   
   cp "talign/grammars/wordpairs.f-e.features" wordpair_feats_file
@@ -143,6 +156,7 @@ task GenerateWordpairFeatsT2S
     :: wammar_utils_dir=@
     :: tgt=@
     :: src=@
+    :: precomputed_features=@
     > wordpair_feats_file 
     #:: .submitter=torque_normal .walltime="12:00:00" .cpus=32 .vmem=64g .q=normal 
 {
@@ -154,7 +168,11 @@ task GenerateWordpairFeatsT2S
   # use cdec to generate word pair features for a partiuclar test set
   ~/cdec/word-aligner/aligner.pl --mkcls=$mkcls_bin reverse.$tgt-$src
   pushd talign
-  make generate-wordpair-features
+  if [ $precomputed_features == all ]; then
+    make generate-wordpair-features USE_AFFIXES=1
+  else
+    make generate-wordpair-features USE_AFFIXES=0
+  fi
   gzip -d grammars/wordpairs.f-e.features.gz
   popd
   
