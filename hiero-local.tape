@@ -4,19 +4,18 @@ global {
   ducttape_experimental_submitters=enable
   ducttape_experimental_imports=enable
 
-  # word pair features hyperparams
-  precomputed_features=(PrecomputedFeatures: all=all dyer11=dyer11 none=none)
-
   # autoencoder hyperparams
   l2_strength=(L2Strength: zero="" point_o_one=0.01 point_one=0.1 one=1.0 ten=10.0 hundred=100.0)
   l1_strength=(L1Strength: zero="" point_o_one=0.01 point_one=0.1 one=1.0 ten=10.0 hundred=100.0)
-  dirichlet_alpha=(DirichletAlpha: one=1.0 smooth=1.01 too_smooth=2 sparse=0.99 too_sparse=0.5)
-  variational=(Variational: yes=true no=false)
-  lbfgs_itercount=(LbfgsItercount: one=1)
-  em_itercount=(EmItercount: one=1 zero=0)
-  coord_itercount=(CoordItercount: normal="" zero=0)
+  dirichlet_alpha=(DirichletAlpha: one=1.0 zero_point_five=0.5 one_point_five=1.5)
+  lbfgs_itercount=(LbfgsItercount: one=1 two=2 four=4 eight=8)
+  em_itercount=(EmItercount: one=1 zero=0 two=2 four=4 eight=8)
+  #coord_itercount=(CoordItercount: normal=50 zero=0 ten=10)
   test_with_crf_only=(TestWithCrfOnly: no=false yes=true)
-
+  optimize_lambdas_first=(OptimizeLambdasFirst: no=false yes=true)
+  precomputed_features=(PrecomputedFeatures: all=all dyer11=dyer11 none=none)
+  use_other_aligners=(UseOtherAligners: no="" yes=yes)
+  use_src_bigrams=(UseSrcBigrams: no="" yes=yes)
 }
 
 #import ../submitters.tape
@@ -127,15 +126,20 @@ task GizaAlignT2S
 task GenerateWordpairFeatsS2T 
     :: data_file=$train_corpus 
     :: mkcls_bin=@
+    :: cdec_dir=@
     :: precomputed_features=@
+    :: src_brown_clusters=@
+    :: tgt_brown_clusters=@
+    :: alignment_with_openfst_dir=@
     > wordpair_feats_file 
+    > wordpair_feats_file_cdec 
     #:: .submitter=torque_shared .walltime="12:00:00" .cpus=32 .vmem=32g .q=normal 
 {
   # use cdec to generate word pair features for a partiuclar test set
-  ~/cdec/word-aligner/aligner.pl --mkcls=$mkcls_bin $data_file
+  $cdec_dir/word-aligner/aligner.pl --mkcls=$mkcls_bin $data_file
   pushd talign
   if [ $precomputed_features == none ]; then
-    mkdir grammars
+    cd grammars
     touch wordpairs.f-e.features
   else
     if [ $precomputed_features == all ]; then
@@ -147,7 +151,10 @@ task GenerateWordpairFeatsS2T
   fi
   popd
   
-  cp "talign/grammars/wordpairs.f-e.features" wordpair_feats_file
+  cp "talign/grammars/wordpairs.f-e.features" $wordpair_feats_file_cdec
+
+  python $alignment_with_openfst_dir/augment_wordpair_feats.py -i $wordpair_feats_file_cdec -sb $src_brown_clusters -tb $tgt_brown_clusters -o $wordpair_feats_file
+  
 } 
 
 task GenerateWordpairFeatsT2S 
@@ -157,26 +164,36 @@ task GenerateWordpairFeatsT2S
     :: tgt=@
     :: src=@
     :: precomputed_features=@
+    :: cdec_dir=@
+    :: src_brown_clusters=$tgt_brown_clusters
+    :: tgt_brown_clusters=$src_brown_clusters
+    :: alignment_with_openfst_dir=@
     > wordpair_feats_file 
+    > wordpair_feats_file_cdec 
     #:: .submitter=torque_normal .walltime="12:00:00" .cpus=32 .vmem=64g .q=normal 
-{
-
-  
+{  
   python $wammar_utils_dir/horizontal-split-parallel-corpus.py -i $data_file -1 src -2 tgt
   python $wammar_utils_dir/paste.py -1 tgt -2 src -d " ||| " -o reverse.$tgt-$src
 
   # use cdec to generate word pair features for a partiuclar test set
-  ~/cdec/word-aligner/aligner.pl --mkcls=$mkcls_bin reverse.$tgt-$src
+  $cdec_dir/word-aligner/aligner.pl --mkcls=$mkcls_bin reverse.$tgt-$src
   pushd talign
-  if [ $precomputed_features == all ]; then
-    make generate-wordpair-features USE_AFFIXES=1
+  if [ $precomputed_features == none ]; then
+    cd grammars
+    touch wordpairs.f-e.features
   else
-    make generate-wordpair-features USE_AFFIXES=0
+    if [ $precomputed_features == all ]; then
+      make generate-wordpair-features USE_AFFIXES=1
+    else
+      make generate-wordpair-features USE_AFFIXES=0
+    fi
+    gzip -d grammars/wordpairs.f-e.features.gz
   fi
-  gzip -d grammars/wordpairs.f-e.features.gz
   popd
   
-  cp "talign/grammars/wordpairs.f-e.features" wordpair_feats_file
+  cp "talign/grammars/wordpairs.f-e.features" $wordpair_feats_file_cdec
+
+  python $alignment_with_openfst_dir/augment_wordpair_feats.py -i $wordpair_feats_file_cdec -sb $src_brown_clusters -tb $tgt_brown_clusters -o $wordpair_feats_file
   
 } 
 
@@ -194,7 +211,7 @@ task BuildLatentCrfAligner
 
 task AutoencoderAlignS2T
     :: alignment_with_openfst_dir=@
-    :: test_sents_count=@ 
+    :: test_sents_count=@
     :: procs=$cores
     :: data_file=$train_corpus
     :: init_theta=$init_theta_fwd
@@ -202,11 +219,18 @@ task AutoencoderAlignS2T
     :: l2_strength=@
     :: l1_strength=@
     :: dirichlet_alpha=@
-    :: variational=@
     :: test_with_crf_only=@
     :: lbfgs_itercount=@
     :: em_itercount=@
-    :: coord_itercount=@
+    :: optimize_lambdas_first=@
+    :: fwd_giza_alignments=@
+    :: bwd_giza_alignments=@
+    :: sym_giza_alignments=@
+    :: fwd_fast_alignments=@
+    :: bwd_fast_alignments=@
+    :: sym_fast_alignments=@
+    :: use_other_aligners=@
+    :: use_src_bigrams=@
     < executable=$executable@BuildLatentCrfAligner
     < wordpair_feats_file=$wordpair_feats_file@GenerateWordpairFeatsS2T 
     > alignment 
@@ -214,15 +238,21 @@ task AutoencoderAlignS2T
    # :: .submitter=torque_normal .walltime="48:00:00" .cpus=32 .vmem=64g .q=normal 
 {
 
+  model1_itercount="5"
+  variational="true"
+
   # the latent-CRF word alignment mode
   command="mpirun -np $procs $executable
   --train-data $data_file 
   --output-prefix prefix 
-  --feat SRC0_TGT0 --feat LOG_ALIGNMENT_JUMP --feat DIAGONAL_DEVIATION --feat SYNC_START --feat SYNC_END 
-  --feat ALIGNMENT_JUMP --feat ALIGNMENT_JUMP_IS_ZERO --feat PRECOMPUTED 
+  --feat PRECOMPUTED --feat DIAGONAL_DEVIATION --feat LOG_ALIGNMENT_JUMP
   --wordpair-feats $wordpair_feats_file 
-  --test-size $test_sents_count"
-
+  --test-size $test_sents_count
+  --max-model1-iter-count $model1_itercount"
+  # hiding --feat SRC0_TGT0 
+  # --feat SYNC_START --feat SYNC_END  
+  #--optimizer adagrad --minibatch-size 1000
+  
   if [ $init_theta ]; then
     command="$command --init-theta $init_theta"  
   fi
@@ -240,7 +270,7 @@ task AutoencoderAlignS2T
   fi
 
   if [ $dirichlet_alpha ]; then
-    command="$command dirichlet-alpha $dirichlet_alpha"
+    command="$command --dirichlet-alpha $dirichlet_alpha"
   fi
 
   if [ $variational ]; then
@@ -259,10 +289,41 @@ task AutoencoderAlignS2T
     command="$command --max-lbfgs-iter-count $lbfgs_itercount"
   fi 
 
-  if [ $coord_itercount ]; then
-    command="$command --max-iter-count $coord_itercount"
+  if [ $optimize_lambdas_first ]; then
+    command="$command --optimize-lambdas-first $optimize_lambdas_first"
   fi
 
+  if [ $fwd_giza_alignments ]; then
+    command="$command --other-aligners-output-filenames $fwd_giza_alignments"
+  fi
+
+  if [ $bwd_giza_alignments ]; then
+    command="$command --other-aligners-output-filenames $bwd_giza_alignments"
+  fi
+
+  if [ $sym_giza_alignments ]; then
+    command="$command --other-aligners-output-filenames $sym_giza_alignments"
+  fi
+
+  if [ $fwd_fast_alignments ]; then
+    command="$command --other-aligners-output-filenames $fwd_fast_alignments"
+  fi
+
+  if [ $bwd_fast_alignments ]; then
+    command="$command --other-aligners-output-filenames $bwd_fast_alignments"
+  fi
+
+  if [ $sym_fast_alignments ]; then
+    command="$command --other-aligners-output-filenames $sym_fast_alignments"
+  fi
+
+  if [ $use_other_aligners ]; then
+    command="$command --feat OTHER_ALIGNERS"
+  fi
+
+  if [ $use_src_bigrams ]; then
+    command="$command --feat SRC_BIGRAM"
+  fi
 
   echo "executing $command..."
   $command 2> $out_err
@@ -281,11 +342,18 @@ task AutoencoderAlignT2S
     :: l2_strength=@
     :: l1_strength=@
     :: dirichlet_alpha=@
-    :: variational=@
     :: test_with_crf_only=@
     :: lbfgs_itercount=@
     :: em_itercount=@
-    :: coord_itercount=@
+    :: optimize_lambdas_first=@
+    :: fwd_giza_alignments=@
+    :: bwd_giza_alignments=@
+    :: sym_giza_alignments=@
+    :: fwd_fast_alignments=@
+    :: bwd_fast_alignments=@
+    :: sym_fast_alignments=@
+    :: use_other_aligners=@
+    :: use_src_bigrams=@
     < wordpair_feats_file=$wordpair_feats_file@GenerateWordpairFeatsT2S 
     < executable=$executable@BuildLatentCrfAligner
     > alignment 
@@ -293,16 +361,22 @@ task AutoencoderAlignT2S
    # :: .submitter=torque_normal .walltime="48:00:00" .cpus=32 .vmem=64g .q=normal 
 {
 
+  model1_itercount="5"
+  variational="true"
+
   # the latent-CRF word alignment mode
   command="mpirun -np $procs $executable 
   --train-data $data_file 
   --output-prefix prefix 
-  --feat SRC0_TGT0 --feat LOG_ALIGNMENT_JUMP --feat DIAGONAL_DEVIATION --feat SYNC_START --feat SYNC_END 
-  --feat ALIGNMENT_JUMP --feat ALIGNMENT_JUMP_IS_ZERO --feat PRECOMPUTED 
+  --feat PRECOMPUTED --feat DIAGONAL_DEVIATION --feat LOG_ALIGNMENT_JUMP
   --wordpair-feats $wordpair_feats_file 
   --test-size $test_sents_count 
-  --reverse true"
-
+  --reverse true
+  --max-model1-iter-count $model1_itercount"
+  # hiding --feat SRC0_TGT0 
+  #   --feat SYNC_START --feat SYNC_END
+  #--optimizer adagrad --minibatch-size 1000
+  
   if [ $init_theta ]; then
     command="$command --init-theta $init_theta"
   fi
@@ -320,7 +394,7 @@ task AutoencoderAlignT2S
   fi
 
   if [ $dirichlet_alpha ]; then
-    command="$command dirichlet-alpha $dirichlet_alpha"
+    command="$command --dirichlet-alpha $dirichlet_alpha"
   fi
 
   if [ $variational ]; then
@@ -339,8 +413,40 @@ task AutoencoderAlignT2S
     command="$command --max-lbfgs-iter-count $lbfgs_itercount"
   fi 
 
-  if [ $coord_itercount ]; then
-    command="$command --max-iter-count $coord_itercount"
+  if [ $optimize_lambdas_first ]; then
+    command="$command --optimize-lambdas-first $optimize_lambdas_first"
+  fi
+
+  if [ $fwd_giza_alignments ]; then
+    command="$command --other-aligners-output-filenames $fwd_giza_alignments"
+  fi
+
+  if [ $bwd_giza_alignments ]; then
+    command="$command --other-aligners-output-filenames $bwd_giza_alignments"
+  fi
+
+  if [ $sym_giza_alignments ]; then
+    command="$command --other-aligners-output-filenames $sym_giza_alignments"
+  fi
+
+  if [ $fwd_fast_alignments ]; then
+    command="$command --other-aligners-output-filenames $fwd_fast_alignments"
+  fi
+
+  if [ $bwd_fast_alignments ]; then
+    command="$command --other-aligners-output-filenames $bwd_fast_alignments"
+  fi
+
+  if [ $sym_fast_alignments ]; then
+    command="$command --other-aligners-output-filenames $sym_fast_alignments"
+  fi
+
+  if [ $use_other_aligners ]; then
+    command="$command --feat OTHER_ALIGNERS"
+  fi
+
+  if [ $use_src_bigrams ]; then
+    command="$command --feat SRC_BIGRAM"
   fi
 
   echo "executing $command..."

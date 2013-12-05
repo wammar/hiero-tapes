@@ -1,0 +1,13 @@
+#!/bin/bash
+#PBS -q normal
+#PBS -l nodes=1:ppn=32
+#PBS -l walltime=48:00:00
+#PBS -d .
+#PBS -j oe
+
+my_jobid=$(echo $PBS_JOBID | sed 's/\..*//')
+my_jobname=$PBS_JOBNAME.$my_jobid
+# Redirect, so don't have to wait till job finish to see stdout/stderr 
+(
+ducttape hiero-local.tape -h fr-en-exp106.tconf -p Aer -y
+) &> fr-en-exp106.job.out

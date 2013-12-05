@@ -1,0 +1,22 @@
+import fr-en.tconf
+
+global {
+    # Output directory:
+    ducttape_output="/oasis/projects/nsf/cmu134/wammar/fr-en-exp104"
+
+    # initial autoencoder params
+    init_theta_fwd=""
+    init_lambda_fwd=""
+    init_theta_bwd=""
+    init_lambda_bwd=""
+
+}
+
+plan Aer {
+    reach EvaluateAlignment via (Aligner: autoencoder autoencoder_none none_autoencoder) * (L2Strength: point_o_one) * (L1Strength: zero) * (DirichletAlpha: one_point_five) * (PrecomputedFeatures: dyer11) * (OptimizeLambdasFirst: yes) * (UseWordClusters: yes) * (UseOtherAligners: yes) * (EmItercount: two)
+}
+
+plan Full {
+    reach Evaluate via (TuneOrTest: tune test) * (UseCustomLM: no) * (Aligner: autoencoder) * (L2Strength: one) * (L1Strength: zero) * (DirichletAlpha: smooth) 
+}
+

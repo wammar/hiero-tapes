@@ -2,11 +2,13 @@ global {
     train_corpus="/oasis/projects/nsf/cmu134/wammar/data/10k.fr-en"
     tune_corpus="/oasis/projects/nsf/cmu134/wammar/data/dev.fr-en"
     test_corpus="/oasis/projects/nsf/cmu134/wammar/data/test.fr-en"
+    src_brown_clusters="/oasis/projects/nsf/cmu134/wammar/data/10k.fr-en.fr-brown"
+    tgt_brown_clusters="/oasis/projects/nsf/cmu134/wammar/data/10k.fr-en.en-brown"
 
     language_model="/usr1/home/wammar/monolingual/en-3.klm"
 
     # tool paths
-    cdec_dir="/home/wammar/cdec/"
+    cdec_dir="/home/wammar/cdec-rep/"
     multeval="/home/wammar/multeval/multeval.sh"
     giza_bin="/home/wammar/mgizapp/bin"
     moses_train_script="/home/wammar/mosesdecoder/scripts/training/train-model.perl"
@@ -20,4 +22,11 @@ global {
     gold_alignment="/oasis/projects/nsf/cmu134/wammar/data/hansards/English-French/answers/test.wa.nullalign"
     #gold_alignment="/oasis/projects/nsf/cmu134/wammar/data/hansards/English-French/answers/test.wa.nonullalign"
 
+    # other aligner outputs
+    fwd_giza_alignments="/oasis/projects/nsf/cmu134/wammar/data/10k.fr-en.giza.bwd-out"
+    bwd_giza_alignments="/oasis/projects/nsf/cmu134/wammar/data/10k.fr-en.giza.fwd-out"
+    sym_giza_alignments="/oasis/projects/nsf/cmu134/wammar/data/10k.fr-en.giza.sym-out"
+    fwd_fast_alignments="/oasis/projects/nsf/cmu134/wammar/data/10k.fr-en.fast.fwd-out"
+    bwd_fast_alignments="/oasis/projects/nsf/cmu134/wammar/data/10k.fr-en.fast.bwd-out"
+    sym_fast_alignments="/oasis/projects/nsf/cmu134/wammar/data/10k.fr-en.fast.sym-out"
 }
